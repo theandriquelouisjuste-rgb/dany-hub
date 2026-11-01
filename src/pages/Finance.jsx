@@ -14,7 +14,7 @@ import { fmtDate, groupSumConverted, monthKey, sum, sumConverted, thisMonth, toD
 const emptyTx = (currency) => ({ type: 'expense', amount: '', category: 'Alimentation', description: '', date: toDateStr(), currency })
 
 export default function Finance() {
-  const { currency, convertAmount, formatCurrency, rateError, ratesAvailable } = usePrefs()
+  const { currency, convertAmount, formatCurrency } = usePrefs()
   const money = (n, sourceCurrency = currency) => n === null ? '—' : formatCurrency(n, sourceCurrency)
   const tx = useTable('transactions', { orderBy: 'date' })
   const budgets = useTable('budgets', { orderBy: 'category', ascending: true })
@@ -96,8 +96,8 @@ export default function Finance() {
   const newDataError = tx.error || budgets.error || debts.error || debtPayments.error || payments.error
   const financialRows = [...tx.rows, ...budgets.rows, ...debts.rows, ...payments.rows]
   const conversionWarning = financialRows.some((item) => convertAmount(item.amount ?? item.initial_amount, item.currency || currency) === null)
-    ? 'Connexion Internet nécessaire pour convertir des montants.'
-    : rateError && ratesAvailable ? 'La dernière mise à jour a échoué; les taux enregistrés en cache restent utilisés.' : rateError
+    ? 'Un code de devise enregistré ne figure pas dans la liste des taux pris en charge.'
+    : null
   const deleteBudget = async (budget) => {
     if (!confirm(`Supprimer le budget « ${budget.category} » ?`)) return
     try { await budgets.remove(budget.id); toast('Budget supprimé') }
@@ -147,7 +147,7 @@ export default function Finance() {
           <Button onClick={() => setForm(emptyTx(currency))}><Plus size={16} />Transaction</Button>
         </>} />
       {newDataError && <p role="alert" className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">Impossible de charger certaines données financières : {newDataError}. Vérifie que le schéma Supabase est à jour.</p>}
-      {conversionWarning && <p role="status" className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">{ratesAvailable ? 'Les montants restent convertis avec les derniers taux disponibles. ' : 'Les montants des autres devises restent affichés dans leur devise d’origine tant que le taux n’est pas disponible. '}{conversionWarning}</p>}
+      {conversionWarning && <p role="status" className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">{conversionWarning}</p>}
 
       <div className="grid sm:grid-cols-3 gap-4 mb-6">
         <StatCard icon={ArrowUpCircle} label="Revenus" value={money(income)} color={COLORS.green} />
@@ -212,7 +212,7 @@ export default function Finance() {
             </div>
           </div>
           <Card>
-            {report === null ? <Empty text="Impossible de convertir ces montants. Vérifie ta connexion Internet." /> : report.length === 0 ? <Empty text="Pas encore de données" /> : (
+            {report === null ? <Empty text="Impossible de convertir ces montants : un code de devise enregistré n’est pas pris en charge." /> : report.length === 0 ? <Empty text="Pas encore de données" /> : (
               <div className="h-72">
                 <ResponsiveContainer>
                   <BarChart data={report}>

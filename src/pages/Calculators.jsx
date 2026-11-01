@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, Calculator as CalcIcon, Percent, PiggyBank, RefreshCw, Tag, TrendingUp, Delete } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowLeftRight, Calculator as CalcIcon, Percent, PiggyBank, Tag, TrendingUp, Delete } from 'lucide-react'
 import { usePrefs } from '../context/PrefsContext'
 import { Button, Card, Field, Input, PageHeader, Select, Tabs } from '../components/ui'
 import { CURRENCIES } from '../lib/constants'
@@ -116,54 +116,30 @@ function Percentage() {
   )
 }
 
-const FALLBACK_RATES = { USD: 1, HTG: 131, EUR: 0.92, DOP: 59, CAD: 1.37, GBP: 0.79 }
 function Converter() {
-  const { currency } = usePrefs()
-  const [rates, setRates] = useState(null)
-  const [updated, setUpdated] = useState('')
-  const [live, setLive] = useState(true)
-  const [loading, setLoading] = useState(false)
+  const { currency, convertBetween } = usePrefs()
   const [amount, setAmount] = useState('100')
   const [from, setFrom] = useState('USD')
   const [to, setTo] = useState(currency === 'USD' ? 'HTG' : currency)
 
-  const load = useCallback(async (force = false) => {
-    const cache = JSON.parse(localStorage.getItem('danyhub:rates') || 'null')
-    if (!force && cache && Date.now() - cache.t < 3600000) { setRates(cache.rates); setUpdated(cache.updated); setLive(true); return }
-    setLoading(true)
-    try {
-      const r = await fetch('https://open.er-api.com/v6/latest/USD')
-      const j = await r.json()
-      if (j.result !== 'success') throw new Error('api')
-      setRates(j.rates); setUpdated(j.time_last_update_utc); setLive(true)
-      localStorage.setItem('danyhub:rates', JSON.stringify({ t: Date.now(), rates: j.rates, updated: j.time_last_update_utc }))
-    } catch {
-      setRates(cache?.rates || FALLBACK_RATES); setUpdated(cache?.updated || ''); setLive(Boolean(cache))
-    }
-    setLoading(false)
-  }, [])
-  useEffect(() => { load() }, [load])
+  useEffect(() => { setTo(currency === 'USD' ? 'HTG' : currency) }, [currency])
 
-  const list = useMemo(() => rates ? [...new Set([...CURRENCIES, ...Object.keys(rates).sort()])] : CURRENCIES, [rates])
   const A = num(amount)
-  const converted = rates && A !== null && rates[from] && rates[to] ? (A / rates[from]) * rates[to] : null
-  const unit = rates && rates[from] && rates[to] ? rates[to] / rates[from] : null
+  const converted = A === null ? null : convertBetween(A, from, to)
+  const unit = convertBetween(1, from, to)
 
   return (
     <Card className="max-w-xl">
       <div className="space-y-4">
         <Field label="Montant"><Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
         <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-end">
-          <Field label="De"><Select value={from} onChange={(e) => setFrom(e.target.value)}>{list.map((c) => <option key={c}>{c}</option>)}</Select></Field>
+          <Field label="De"><Select value={from} onChange={(e) => setFrom(e.target.value)}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</Select></Field>
           <Button variant="ghost" size="icon" onClick={() => { setFrom(to); setTo(from) }} className="mb-0.5"><ArrowLeftRight size={16} /></Button>
-          <Field label="Vers"><Select value={to} onChange={(e) => setTo(e.target.value)}>{list.map((c) => <option key={c}>{c}</option>)}</Select></Field>
+          <Field label="Vers"><Select value={to} onChange={(e) => setTo(e.target.value)}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</Select></Field>
         </div>
         {converted !== null && <Result label={`${fmtNum(A)} ${from} =`} value={`${fmtNum(converted, 4)} ${to}`} />}
         {unit && <p className="text-xs text-muted">1 {from} = {fmtNum(unit, 4)} {to}</p>}
-        <div className="flex items-center justify-between text-xs text-muted">
-          <span>{live && updated ? `Taux mis à jour : ${new Date(updated).toLocaleString('fr-FR')}` : '⚠️ Hors ligne — taux approximatifs'}</span>
-          <Button size="sm" variant="ghost" onClick={() => load(true)} disabled={loading}><RefreshCw size={13} className={loading ? 'animate-spin' : ''} />Actualiser</Button>
-        </div>
+        <p className="text-xs text-muted">Taux fixes de référence communiqués pour chaque devise; la conversion fonctionne hors ligne.</p>
       </div>
     </Card>
   )

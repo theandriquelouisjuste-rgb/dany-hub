@@ -11,7 +11,7 @@ import { addDays, fmtDate, groupSumConverted, monthKey, monthLabel, sum, sumConv
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const { currency, display_name, convertAmount, formatCurrency, rateError, ratesAvailable } = usePrefs()
+  const { currency, display_name, convertAmount, formatCurrency } = usePrefs()
   const tx = useTable('transactions', { orderBy: 'date' })
   const tasks = useTable('tasks')
   const goals = useTable('savings_goals')
@@ -66,8 +66,8 @@ export default function Dashboard() {
   const hasUnconvertedValues = [...tx.rows, ...contribs.rows, ...goals.rows, ...debts.rows, ...payments.rows]
     .some((item) => convertAmount(item.amount ?? item.target_amount ?? item.initial_amount, item.currency || currency) === null)
   const conversionError = hasUnconvertedValues
-    ? 'Connexion Internet nécessaire pour convertir des montants.'
-    : rateError && ratesAvailable ? 'La dernière mise à jour a échoué; les taux enregistrés en cache restent utilisés.' : rateError
+    ? 'Un code de devise enregistré ne figure pas dans la liste des taux pris en charge.'
+    : null
 
   return (
     <div className="space-y-6">
@@ -86,7 +86,7 @@ export default function Dashboard() {
         </div>
       </div>
       {dataError && <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">Certaines données financières ne sont pas disponibles : {dataError}. Vérifie que le schéma Supabase est à jour.</p>}
-      {conversionError && <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">{ratesAvailable ? 'Les montants restent convertis avec les derniers taux disponibles. ' : 'Les montants des autres devises restent affichés dans leur devise d’origine tant que le taux n’est pas disponible. '}{conversionError}</p>}
+      {conversionError && <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">{conversionError}</p>}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard icon={Wallet} label="Solde cumulé" value={money(d.balance)} color={d.balance === null || d.balance >= 0 ? COLORS.accent : COLORS.red} sub="Depuis le début du suivi" />
@@ -125,7 +125,7 @@ export default function Dashboard() {
                 <Bar dataKey="Dépenses" fill={COLORS.red} radius={[6, 6, 0, 0]} animationDuration={900} />
               </BarChart>
             </ResponsiveContainer>
-          </div> : <Empty text="Impossible de convertir ces montants. Vérifie ta connexion Internet." />}
+          </div> : <Empty text="Impossible de convertir ces montants : un code de devise enregistré n’est pas pris en charge." />}
         </Card>
 
         <Card>

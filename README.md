@@ -28,7 +28,7 @@ Dans le projet Supabase utilisé par le site, exécute `supabase/migrations/2026
 
 Exécute la migration sur chaque projet Supabase utilisé par un déploiement. Vérifie que le domaine du projet dans Supabase correspond à `VITE_SUPABASE_URL` dans les paramètres Vercel ou aux secrets GitHub Actions; deux domaines peuvent pointer vers deux bases de données différentes.
 
-Pour la conversion HTG/USD, l'application utilise le taux de référence `1 USD = 130,85 HTG`; les autres paires de devises utilisent les taux de change en ligne.
+La conversion de toutes les devises utilise les taux HTG de référence fournis par l'utilisateur (par exemple `1 USD = 130,60 HTG`) dans toute l'application, y compris le convertisseur des calculatrices. Les conversions fonctionnent hors ligne.
 
 ## Publication sur GitHub Pages
 
@@ -50,9 +50,9 @@ Les URL de navigation utilisent un fragment (`#/...`) pour être compatibles ave
 | Paiements | Visa, Mastercard, cash, MonCash, NatCash, reçus (Storage privé), abonnements récurrents, rapports convertis, export CSV/PDF |
 | Calendrier | Événements personnels, échéances des tâches et abonnements récurrents dans une vue mensuelle |
 | Notifications | Alertes pour tâches en retard/à venir, paiements, échéances de dettes et seuils de budget; lecture, filtres et suppression |
-| Calculatrices | Standard (clavier), pourcentage, convertisseur (taux en direct open.er-api.com), profit/perte, remise, budget 50/30/20 |
+| Calculatrices | Standard (clavier), pourcentage, convertisseur de devises, profit/perte, remise, budget 50/30/20 |
 | Épargne | Objectifs, contributions, barres de progression, montant restant, estimation de date et effort mensuel |
-| Réglages | Thème clair/sombre, devise principale, nom — sauvegardés dans `user_preferences`; les montants gardent leur devise d'origine et leur affichage est converti avec des taux en ligne mis en cache |
+| Réglages | Thème clair/sombre, devise principale, nom — sauvegardés dans `user_preferences`; les montants gardent leur devise d'origine et leur affichage est converti selon les taux de référence HTG configurés |
 
 ## Sécurité
 

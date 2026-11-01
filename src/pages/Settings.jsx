@@ -52,12 +52,7 @@ export default function SettingsPage() {
             {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
           </Select>
           <p className="text-xs text-muted mt-2">Les montants enregistrés gardent leur devise d'origine. Changer cette devise convertit leur affichage dans toute l'application; cela ne modifie pas les données sauvegardées.</p>
-          <p className="text-xs text-muted mt-2">Taux appliqué pour la conversion gourde/dollar : 1 USD = {prefs.usdHtgRate.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} HTG. Les autres devises utilisent le taux de référence en ligne.</p>
-          <p className="text-xs text-muted mt-2">
-            {prefs.rateLoading ? 'Mise à jour des taux de change…' :
-              prefs.ratesUpdatedAt ? `Taux récupérés le ${new Date(prefs.ratesUpdatedAt).toLocaleString('fr-FR')}${prefs.rateError ? ' · dernière mise à jour impossible, taux en cache utilisés' : ''}` :
-                prefs.rateError ? `Conversion indisponible : ${prefs.rateError}` : 'Chargement des taux de change…'}
-          </p>
+          <p className="text-xs text-muted mt-2">Taux de référence communiqués : 1 {prefs.currency} = {prefs.currencyToHtgRate.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} HTG. Tous les montants utilisent ces taux fixes.</p>
         </Card>
         <Card>
           <h3 className="font-semibold mb-1">Sécurité</h3>

@@ -16,7 +16,7 @@ const empty = (currency) => ({ merchant: '', amount: '', currency, date: toDateS
 
 export default function Payments() {
   const { user } = useAuth()
-  const { currency, convertAmount, formatCurrency, rateError, ratesAvailable } = usePrefs()
+  const { currency, convertAmount, formatCurrency } = usePrefs()
   const money = (n, sourceCurrency = currency) => n === null ? '—' : formatCurrency(n, sourceCurrency)
   const pay = useTable('payments', { orderBy: 'date' })
   const tx = useTable('transactions')
@@ -110,15 +110,15 @@ export default function Payments() {
   const paymentExportTotal = sumConverted(filtered, (p) => p.amount, currency, convertAmount)
   const dataError = pay.error || tx.error
   const conversionWarning = pay.rows.some((payment) => convertAmount(payment.amount, payment.currency) === null)
-    ? 'Connexion Internet nécessaire pour convertir des montants.'
-    : rateError && ratesAvailable ? 'La dernière mise à jour a échoué; les taux enregistrés en cache restent utilisés.' : rateError
+    ? 'Un code de devise enregistré ne figure pas dans la liste des taux pris en charge.'
+    : null
 
   return (
     <div>
       <PageHeader title="Paiements" subtitle="Historique, abonnements et reçus"
         actions={<Button onClick={() => setForm(empty(currency))}><Plus size={16} />Nouveau paiement</Button>} />
       {dataError && <p role="alert" className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">Impossible de charger les paiements ou transactions : {dataError}. Vérifie que le schéma Supabase est à jour.</p>}
-      {conversionWarning && <p role="status" className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">{ratesAvailable ? 'Les montants restent convertis avec les derniers taux disponibles. ' : 'Les montants des autres devises restent affichés dans leur devise d’origine tant que le taux n’est pas disponible. '}{conversionWarning}</p>}
+      {conversionWarning && <p role="status" className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">{conversionWarning}</p>}
 
       <div className="mb-5 flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
         <ShieldCheck size={16} className="shrink-0 mt-0.5" />
@@ -144,7 +144,7 @@ export default function Payments() {
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="!w-auto" />
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="!w-auto" />
             <Button variant="ghost" size="sm" onClick={() => exportCSV('paiements.csv', cols, exportRows())}><Download size={14} />CSV</Button>
-            <Button variant="ghost" size="sm" onClick={() => exportPDF('paiements.pdf', 'Historique des paiements', cols, exportRows(), paymentExportTotal === null ? 'Total indisponible : taux de change manquant' : `Total ${plain(paymentExportTotal)} ${currency}`)}><FileText size={14} />PDF</Button>
+            <Button variant="ghost" size="sm" onClick={() => exportPDF('paiements.pdf', 'Historique des paiements', cols, exportRows(), paymentExportTotal === null ? 'Total indisponible : code de devise non pris en charge' : `Total ${plain(paymentExportTotal)} ${currency}`)}><FileText size={14} />PDF</Button>
           </div>
           {filtered.length === 0 ? <Empty icon={CreditCard} text="Aucun paiement" /> : (
             <div className="space-y-2">
@@ -203,7 +203,7 @@ export default function Payments() {
         <div className="mt-5 grid lg:grid-cols-2 gap-4">
           <Card>
             <h3 className="font-semibold mb-2">Par moyen de paiement</h3>
-            {byMethod === null ? <Empty text="Impossible de convertir ces montants. Vérifie ta connexion Internet." /> : byMethod.length === 0 ? <Empty text="Pas de données" /> : (
+            {byMethod === null ? <Empty text="Impossible de convertir ces montants : un code de devise enregistré n’est pas pris en charge." /> : byMethod.length === 0 ? <Empty text="Pas de données" /> : (
               <>
                 <div className="h-56">
                   <ResponsiveContainer><PieChart><Pie data={byMethod} dataKey="value" innerRadius={55} outerRadius={85} paddingAngle={3} stroke="none">{byMethod.map((d) => <Cell key={d.id} fill={d.color} />)}</Pie><Tooltip {...chartTooltip} formatter={(v) => money(v)} /></PieChart></ResponsiveContainer>
@@ -214,7 +214,7 @@ export default function Payments() {
           </Card>
           <Card>
             <h3 className="font-semibold mb-2">Paiements par mois</h3>
-            {byMonth === null ? <Empty text="Impossible de convertir ces montants. Vérifie ta connexion Internet." /> : byMonth.length === 0 ? <Empty text="Pas de données" /> : (
+            {byMonth === null ? <Empty text="Impossible de convertir ces montants : un code de devise enregistré n’est pas pris en charge." /> : byMonth.length === 0 ? <Empty text="Pas de données" /> : (
               <div className="h-72"><ResponsiveContainer><BarChart data={byMonth}><CartesianGrid stroke="rgb(var(--line))" vertical={false} /><XAxis dataKey="name" stroke="rgb(var(--muted))" fontSize={12} tickLine={false} axisLine={false} /><YAxis stroke="rgb(var(--muted))" fontSize={12} tickLine={false} axisLine={false} width={50} /><Tooltip {...chartTooltip} formatter={(v) => money(v)} cursor={{ fill: 'rgb(var(--card2))' }} /><Bar dataKey="Total" fill={COLORS.accent} radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></div>
             )}
           </Card>

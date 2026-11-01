@@ -8,7 +8,7 @@ import { CHART_COLORS, COLORS, CURRENCIES } from '../lib/constants'
 import { fmtDate, sum, sumConverted, toDateStr } from '../lib/utils'
 
 export default function Savings() {
-  const { currency, convertBetween, convertAmount, formatCurrency, rateError } = usePrefs()
+  const { currency, convertBetween, convertAmount, formatCurrency } = usePrefs()
   const money = (n, sourceCurrency = currency) => n === null ? '—' : formatCurrency(n, sourceCurrency)
   const goals = useTable('savings_goals')
   const contribs = useTable('savings_contributions', { orderBy: 'date' })
@@ -40,7 +40,9 @@ export default function Savings() {
   const totalSaved = sumConverted(data, (g) => g.saved, currency, convertAmount)
   const totalTarget = sumConverted(data, (g) => g.target_amount, currency, convertAmount)
   const dataError = goals.error || contribs.error
-  const conversionWarning = rateError || (data.some((goal) => goal.saved === null || convertAmount(goal.target_amount, goal.currency || currency) === null) ? 'Connexion Internet nécessaire pour convertir des montants.' : null)
+  const conversionWarning = data.some((goal) => goal.saved === null || convertAmount(goal.target_amount, goal.currency || currency) === null)
+    ? 'Un code de devise enregistré ne figure pas dans la liste des taux pris en charge.'
+    : null
 
   const saveGoal = async (e) => {
     e.preventDefault()
