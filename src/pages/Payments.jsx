@@ -8,16 +8,16 @@ import { usePrefs } from '../context/PrefsContext'
 import { useToast } from '../components/Toast'
 import { supabase } from '../lib/supabase'
 import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, StatCard, Tabs, Textarea, chartTooltip } from '../components/ui'
-import { COLORS, FREQUENCIES, PAYMENT_METHODS, methodOf } from '../lib/constants'
+import { COLORS, CURRENCIES, FREQUENCIES, PAYMENT_METHODS, methodOf } from '../lib/constants'
 import { exportCSV, exportPDF, plain } from '../lib/export'
-import { addFrequency, fmtDate, fmtMoney, groupSum, monthKey, monthLabel, sum, thisMonth, toDateStr } from '../lib/utils'
+import { addFrequency, fmtDate, groupSumConverted, monthKey, monthLabel, sumConverted, thisMonth, toDateStr } from '../lib/utils'
 
-const empty = () => ({ merchant: '', amount: '', date: toDateStr(), method: 'cash', category: 'Shopping', notes: '', is_recurring: false, frequency: 'monthly', next_due: '', also_expense: true, file: null })
+const empty = (currency) => ({ merchant: '', amount: '', currency, date: toDateStr(), method: 'cash', category: 'Shopping', notes: '', is_recurring: false, frequency: 'monthly', next_due: '', also_expense: true, file: null })
 
 export default function Payments() {
   const { user } = useAuth()
-  const { currency } = usePrefs()
-  const money = (n) => fmtMoney(n, currency)
+  const { currency, convertAmount, formatCurrency, rateError, ratesAvailable } = usePrefs()
+  const money = (n, sourceCurrency = currency) => n === null ? '—' : formatCurrency(n, sourceCurrency)
   const pay = useTable('payments', { orderBy: 'date' })
   const tx = useTable('transactions')
   const cats = useCategories('expense')
@@ -37,14 +37,19 @@ export default function Payments() {
     (!q || `${p.merchant} ${p.category || ''}`.toLowerCase().includes(q.toLowerCase()))
   ), [history, fm, from, to, q])
 
-  const monthTotal = sum(history.filter((p) => monthKey(p.date) === thisMonth()), (p) => p.amount)
-  const subsMonthly = sum(subs, (s) => s.frequency === 'weekly' ? s.amount * 4.33 : s.frequency === 'yearly' ? s.amount / 12 : s.amount)
+  const monthTotal = sumConverted(history.filter((p) => monthKey(p.date) === thisMonth()), (p) => p.amount, currency, convertAmount)
+  const monthlySubs = subs.map((s) => ({ ...s, monthlyAmount: s.frequency === 'weekly' ? s.amount * 4.33 : s.frequency === 'yearly' ? s.amount / 12 : s.amount }))
+  const subsMonthly = sumConverted(monthlySubs, (s) => s.monthlyAmount, currency, convertAmount)
 
-  const byMethod = useMemo(() => Object.entries(groupSum(history, (p) => p.method, (p) => p.amount)).map(([id, value]) => ({ id, name: methodOf(id).label, value, color: methodOf(id).color })), [history])
+  const byMethod = useMemo(() => {
+    const grouped = groupSumConverted(history, (p) => p.method, (p) => p.amount, currency, convertAmount)
+    return grouped ? Object.entries(grouped).map(([id, value]) => ({ id, name: methodOf(id).label, value, color: methodOf(id).color })) : null
+  }, [history, currency, convertAmount])
   const byMonth = useMemo(() => {
-    const g = groupSum(history, (p) => monthKey(p.date), (p) => p.amount)
+    const g = groupSumConverted(history, (p) => monthKey(p.date), (p) => p.amount, currency, convertAmount)
+    if (!g) return null
     return Object.keys(g).sort().slice(-6).map((k) => ({ name: monthLabel(k), Total: g[k] }))
-  }, [history])
+  }, [history, currency, convertAmount])
 
   const save = async (e) => {
     e.preventDefault()
@@ -61,7 +66,7 @@ export default function Payments() {
         receipt_path = path
       }
       const payload = {
-        merchant: form.merchant.trim(), amount, currency, date: form.date, method: form.method, category: form.category || null,
+        merchant: form.merchant.trim(), amount, currency: form.currency || currency, date: form.date, method: form.method, category: form.category || null,
         notes: form.notes || null, receipt_path, is_recurring: form.is_recurring,
         frequency: form.is_recurring ? form.frequency : null,
         next_due: form.is_recurring ? (form.next_due || addFrequency(form.date, form.frequency)) : null,
@@ -69,7 +74,7 @@ export default function Payments() {
       if (form.id) await pay.update(form.id, payload)
       else {
         await pay.insert(payload)
-        if (form.also_expense && !form.is_recurring) await tx.insert({ type: 'expense', amount, category: form.category || 'Autre', description: `${form.merchant} (${methodOf(form.method).label})`, date: form.date })
+        if (form.also_expense && !form.is_recurring) await tx.insert({ type: 'expense', amount, currency: form.currency || currency, category: form.category || 'Autre', description: `${form.merchant} (${methodOf(form.method).label})`, date: form.date })
       }
       toast(form.id ? 'Paiement modifié' : 'Paiement enregistré'); setForm(null)
     } catch (err) { toast(err.message, 'error') }
@@ -91,19 +96,29 @@ export default function Payments() {
   const markPaid = async (s) => {
     try {
       await pay.insert({ merchant: s.merchant, amount: s.amount, currency: s.currency, date: toDateStr(), method: s.method, category: s.category, notes: 'Abonnement payé', is_recurring: false })
-      await tx.insert({ type: 'expense', amount: s.amount, category: s.category || 'Abonnements', description: `${s.merchant} (abonnement)`, date: toDateStr() })
+      await tx.insert({ type: 'expense', amount: s.amount, currency: s.currency, category: s.category || 'Abonnements', description: `${s.merchant} (abonnement)`, date: toDateStr() })
       await pay.update(s.id, { next_due: addFrequency(s.next_due || toDateStr(), s.frequency) })
       toast('Paiement enregistré, prochaine échéance mise à jour')
     } catch (e) { toast(e.message, 'error') }
   }
 
-  const cols = ['Date', 'Commerçant', 'Moyen', 'Catégorie', `Montant (${currency})`]
-  const exportRows = () => filtered.map((p) => [p.date, p.merchant, methodOf(p.method).label, p.category || '', plain(p.amount)])
+  const cols = ['Date', 'Commerçant', 'Moyen', 'Catégorie', 'Montant (devise principale si disponible)']
+  const exportRows = () => filtered.map((p) => {
+    const converted = convertAmount(p.amount, p.currency)
+    return [p.date, p.merchant, methodOf(p.method).label, p.category || '', converted === null ? `${plain(p.amount)} ${p.currency}` : plain(converted)]
+  })
+  const paymentExportTotal = sumConverted(filtered, (p) => p.amount, currency, convertAmount)
+  const dataError = pay.error || tx.error
+  const conversionWarning = pay.rows.some((payment) => convertAmount(payment.amount, payment.currency) === null)
+    ? 'Connexion Internet nécessaire pour convertir des montants.'
+    : rateError && ratesAvailable ? 'La dernière mise à jour a échoué; les taux enregistrés en cache restent utilisés.' : rateError
 
   return (
     <div>
       <PageHeader title="Paiements" subtitle="Historique, abonnements et reçus"
-        actions={<Button onClick={() => setForm(empty())}><Plus size={16} />Nouveau paiement</Button>} />
+        actions={<Button onClick={() => setForm(empty(currency))}><Plus size={16} />Nouveau paiement</Button>} />
+      {dataError && <p role="alert" className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">Impossible de charger les paiements ou transactions : {dataError}. Vérifie que le schéma Supabase est à jour.</p>}
+      {conversionWarning && <p role="status" className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">{ratesAvailable ? 'Les montants restent convertis avec les derniers taux disponibles. ' : 'Les montants des autres devises restent affichés dans leur devise d’origine tant que le taux n’est pas disponible. '}{conversionWarning}</p>}
 
       <div className="mb-5 flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
         <ShieldCheck size={16} className="shrink-0 mt-0.5" />
@@ -129,7 +144,7 @@ export default function Payments() {
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="!w-auto" />
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="!w-auto" />
             <Button variant="ghost" size="sm" onClick={() => exportCSV('paiements.csv', cols, exportRows())}><Download size={14} />CSV</Button>
-            <Button variant="ghost" size="sm" onClick={() => exportPDF('paiements.pdf', 'Historique des paiements', cols, exportRows(), `Total ${plain(sum(filtered, (p) => p.amount))} ${currency}`)}><FileText size={14} />PDF</Button>
+            <Button variant="ghost" size="sm" onClick={() => exportPDF('paiements.pdf', 'Historique des paiements', cols, exportRows(), paymentExportTotal === null ? 'Total indisponible : taux de change manquant' : `Total ${plain(paymentExportTotal)} ${currency}`)}><FileText size={14} />PDF</Button>
           </div>
           {filtered.length === 0 ? <Empty icon={CreditCard} text="Aucun paiement" /> : (
             <div className="space-y-2">
@@ -143,10 +158,10 @@ export default function Payments() {
                       <p className="text-xs text-muted">{fmtDate(p.date)} · {p.category || 'Sans catégorie'}</p>
                     </div>
                     <Badge color={m.color} className="hidden sm:inline-flex">{m.label}</Badge>
-                    <span className="text-sm font-semibold whitespace-nowrap">{money(p.amount)}</span>
+                    <span className="text-sm font-semibold whitespace-nowrap">{money(p.amount, p.currency)}</span>
                     <div className="flex">
                       {p.receipt_path && <button title="Voir le reçu" onClick={() => openReceipt(p.receipt_path)} className="p-1.5 text-accent"><Paperclip size={15} /></button>}
-                      <button onClick={() => setForm({ ...empty(), ...p, amount: String(p.amount), notes: p.notes || '', next_due: p.next_due || '', file: null })} className="p-1.5 text-muted hover:text-accent"><Pencil size={15} /></button>
+                      <button onClick={() => setForm({ ...empty(currency), ...p, amount: String(p.amount), notes: p.notes || '', next_due: p.next_due || '', file: null })} className="p-1.5 text-muted hover:text-accent"><Pencil size={15} /></button>
                       <button onClick={() => del(p)} className="p-1.5 text-muted hover:text-red-400"><Trash2 size={15} /></button>
                     </div>
                   </div>
@@ -170,12 +185,12 @@ export default function Payments() {
                     <h4 className="font-medium">{s.merchant}</h4>
                     <p className="text-xs text-muted">{FREQUENCIES.find((f) => f.id === s.frequency)?.label} · <span style={{ color: m.color }}>{m.label}</span></p>
                   </div>
-                  <p className="font-semibold">{money(s.amount)}</p>
+                  <p className="font-semibold">{money(s.amount, s.currency)}</p>
                 </div>
                 <p className={`text-xs mt-3 ${due ? 'text-red-400' : 'text-muted'}`}>Prochaine échéance : {fmtDate(s.next_due)}{due && ' · à payer'}</p>
                 <div className="flex gap-2 mt-4">
                   <Button size="sm" onClick={() => markPaid(s)} className="flex-1"><CheckCircle2 size={14} />Marquer payé</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setForm({ ...empty(), ...s, amount: String(s.amount), notes: s.notes || '', next_due: s.next_due || '', file: null })}><Pencil size={14} /></Button>
+                  <Button size="sm" variant="ghost" onClick={() => setForm({ ...empty(currency), ...s, amount: String(s.amount), notes: s.notes || '', next_due: s.next_due || '', file: null })}><Pencil size={14} /></Button>
                   <Button size="sm" variant="danger" onClick={() => del(s)}><Trash2 size={14} /></Button>
                 </div>
               </Card>
@@ -188,7 +203,7 @@ export default function Payments() {
         <div className="mt-5 grid lg:grid-cols-2 gap-4">
           <Card>
             <h3 className="font-semibold mb-2">Par moyen de paiement</h3>
-            {byMethod.length === 0 ? <Empty text="Pas de données" /> : (
+            {byMethod === null ? <Empty text="Impossible de convertir ces montants. Vérifie ta connexion Internet." /> : byMethod.length === 0 ? <Empty text="Pas de données" /> : (
               <>
                 <div className="h-56">
                   <ResponsiveContainer><PieChart><Pie data={byMethod} dataKey="value" innerRadius={55} outerRadius={85} paddingAngle={3} stroke="none">{byMethod.map((d) => <Cell key={d.id} fill={d.color} />)}</Pie><Tooltip {...chartTooltip} formatter={(v) => money(v)} /></PieChart></ResponsiveContainer>
@@ -199,7 +214,7 @@ export default function Payments() {
           </Card>
           <Card>
             <h3 className="font-semibold mb-2">Paiements par mois</h3>
-            {byMonth.length === 0 ? <Empty text="Pas de données" /> : (
+            {byMonth === null ? <Empty text="Impossible de convertir ces montants. Vérifie ta connexion Internet." /> : byMonth.length === 0 ? <Empty text="Pas de données" /> : (
               <div className="h-72"><ResponsiveContainer><BarChart data={byMonth}><CartesianGrid stroke="rgb(var(--line))" vertical={false} /><XAxis dataKey="name" stroke="rgb(var(--muted))" fontSize={12} tickLine={false} axisLine={false} /><YAxis stroke="rgb(var(--muted))" fontSize={12} tickLine={false} axisLine={false} width={50} /><Tooltip {...chartTooltip} formatter={(v) => money(v)} cursor={{ fill: 'rgb(var(--card2))' }} /><Bar dataKey="Total" fill={COLORS.accent} radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></div>
             )}
           </Card>
@@ -211,9 +226,10 @@ export default function Payments() {
           <form onSubmit={save} className="space-y-4">
             <Field label="Commerçant / bénéficiaire"><Input required autoFocus value={form.merchant} onChange={(e) => setForm({ ...form, merchant: e.target.value })} /></Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label={`Montant (${currency})`}><Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
+              <Field label={`Montant (${form.currency || currency})`}><Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
               <Field label="Date"><Input required type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
             </div>
+            <Field label="Devise"><Select value={form.currency || currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>{CURRENCIES.map((code) => <option key={code}>{code}</option>)}</Select></Field>
             <Field label="Moyen de paiement">
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                 {PAYMENT_METHODS.map((m) => (

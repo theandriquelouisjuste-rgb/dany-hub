@@ -1,6 +1,6 @@
 # DANY HUB
 
-Application de gestion de vie personnelle : tâches, finances, paiements, calculatrices et épargne.
+Application de gestion de vie personnelle : tâches, finances, paiements, calendrier, notifications, calculatrices et épargne.
 Stack : React 18 + Vite + Tailwind CSS + Supabase (auth, Postgres, storage, realtime).
 
 ## Démarrage
@@ -18,6 +18,14 @@ npm run dev
 
 Build de production : `npm run build` (dossier `dist/`, déployable sur Vercel / Netlify, avec les 2 variables d'environnement).
 
+### Connexion Google
+
+Dans Supabase, active **Authentication > Providers > Google** et configure les identifiants OAuth Google. Dans Google Cloud, ajoute l'URL de rappel affichée par le fournisseur Google de Supabase comme URI de redirection autorisée. Enfin, ajoute l'URL du site courant (par exemple `https://ton-site/`) dans **Authentication > URL Configuration > Redirect URLs**. Le bouton « Continuer avec Google » utilise le chemin du site courant comme destination de retour.
+
+### Mise à jour d'une installation existante
+
+Exécute à nouveau la version actuelle de `supabase/schema.sql` dans le SQL Editor de Supabase pour créer les tables `debts`, `debt_payments`, `calendar_events` et `notifications`, ainsi que leurs règles RLS et leurs index. Le script ajoute également la devise aux transactions, budgets et objectifs/contributions d'épargne existants. Pour les anciennes lignes sans devise, il utilise la devise enregistrée dans les préférences au moment de la migration (ou HTG si aucune préférence n'existe). Il conserve les montants et les données déjà présentes.
+
 ## Publication sur GitHub Pages
 
 1. Crée un dépôt GitHub public nommé `dany-hub` et envoie-y le contenu de ce projet, sans le fichier `.env`.
@@ -32,13 +40,15 @@ Les URL de navigation utilisent un fragment (`#/...`) pour être compatibles ave
 
 | Module | Fonctions |
 |---|---|
-| Dashboard | Revenus, dépenses, solde, tâches en attente, échéances, transactions récentes, graphiques mensuels, épargne |
+| Dashboard | Revenus et dépenses du mois, solde cumulé, dettes par devise, épargne, tâches, paiements à venir et graphiques filtrables |
 | Tâches | CRUD, priorités, catégories (perso), échéances, rappels (notification navigateur), vues Liste / Kanban (drag & drop) / Calendrier |
-| Finances | Revenus/dépenses, catégories perso, recherche + filtres, rapports jour/semaine/mois, budgets par catégorie, export CSV/PDF |
-| Paiements | Visa, Mastercard, cash, MonCash, NatCash, reçus (Storage privé), abonnements récurrents, rapports, export CSV/PDF |
+| Finances | Transactions avec devise d'origine, recherche + filtres, rapports convertis, budgets par catégorie, dettes et remboursements avec historique, paiements récurrents |
+| Paiements | Visa, Mastercard, cash, MonCash, NatCash, reçus (Storage privé), abonnements récurrents, rapports convertis, export CSV/PDF |
+| Calendrier | Événements personnels, échéances des tâches et abonnements récurrents dans une vue mensuelle |
+| Notifications | Alertes pour tâches en retard/à venir, paiements, échéances de dettes et seuils de budget; lecture, filtres et suppression |
 | Calculatrices | Standard (clavier), pourcentage, convertisseur (taux en direct open.er-api.com), profit/perte, remise, budget 50/30/20 |
 | Épargne | Objectifs, contributions, barres de progression, montant restant, estimation de date et effort mensuel |
-| Réglages | Thème clair/sombre, devise, nom — sauvegardés dans `user_preferences` |
+| Réglages | Thème clair/sombre, devise principale, nom — sauvegardés dans `user_preferences`; les montants gardent leur devise d'origine et leur affichage est converti avec des taux en ligne mis en cache |
 
 ## Sécurité
 
@@ -55,6 +65,6 @@ src/
   context/     AuthContext, PrefsContext
   hooks/       useTable (CRUD + realtime générique), useCategories
   lib/         supabase, utils, constants, export (CSV/PDF)
-  pages/       Dashboard, Tasks, Finance, Payments, Calculators, Savings, Settings, Auth
+  pages/       Dashboard, Tasks, Finance, Payments, Calendar, Notifications, Calculators, Savings, Settings, Auth
 supabase/schema.sql
 ```

@@ -62,3 +62,22 @@ export const groupSum = (arr, keyFn, valFn) => {
   arr.forEach((x) => { const k = keyFn(x); m[k] = (m[k] || 0) + (Number(valFn(x)) || 0) })
   return m
 }
+export const sumConverted = (arr, amountFn, defaultCurrency, convertAmount) => {
+  let total = 0
+  for (const item of arr) {
+    const converted = convertAmount(amountFn(item), item.currency || defaultCurrency)
+    if (converted === null) return null
+    total += converted
+  }
+  return total
+}
+export const groupSumConverted = (arr, keyFn, amountFn, defaultCurrency, convertAmount) => {
+  const grouped = {}
+  for (const item of arr) {
+    const key = keyFn(item)
+    const converted = convertAmount(amountFn(item), item.currency || defaultCurrency)
+    if (converted === null) return null
+    grouped[key] = (grouped[key] || 0) + converted
+  }
+  return grouped
+}

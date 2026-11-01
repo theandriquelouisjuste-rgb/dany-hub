@@ -12,6 +12,8 @@ import Payments from './pages/Payments'
 import Calculators from './pages/Calculators'
 import Savings from './pages/Savings'
 import SettingsPage from './pages/Settings'
+import CalendarPage from './pages/Calendar'
+import NotificationsPage from './pages/Notifications'
 
 function Protected() {
   const { user, loading } = useAuth()
@@ -36,6 +38,8 @@ export default function App() {
                   <Route path="calculators" element={<Calculators />} />
                   <Route path="savings" element={<Savings />} />
                   <Route path="settings" element={<SettingsPage />} />
+                  <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
                 </Route>
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
