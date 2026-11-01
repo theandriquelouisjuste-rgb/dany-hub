@@ -4,6 +4,17 @@ import { useAuth } from '../context/AuthContext'
 import { isConfigured } from '../lib/supabase'
 import { Button, Field, Input } from '../components/ui'
 
+const authErrorMessage = (error) => {
+  const message = error?.message || 'Connexion impossible.'
+  if (/unsupported provider|provider.+not enabled/i.test(message)) {
+    return 'Google n’est pas encore activé pour ce projet Supabase. Active Google dans Authentication > Sign In / Providers, puis réessaie.'
+  }
+  if (/redirect_uri_mismatch|redirect url/i.test(message)) {
+    return 'L’adresse de retour n’est pas autorisée dans Supabase. Ajoute l’URL du site dans Authentication > URL Configuration.'
+  }
+  return message
+}
+
 export default function Auth() {
   const { user, signIn, signInWithGoogle, signUp } = useAuth()
   const [mode, setMode] = useState('login')
@@ -20,7 +31,7 @@ export default function Auth() {
       ? await signIn(f.email, f.password)
       : await signUp(f.email, f.password, f.name)
     setBusy(false)
-    if (error) setMsg({ t: 'error', m: error.message })
+    if (error) setMsg({ t: 'error', m: authErrorMessage(error) })
     else if (mode === 'signup' && !data.session) setMsg({ t: 'ok', m: 'Compte créé. Vérifie ta boîte mail pour confirmer ton adresse, puis connecte-toi.' })
   }
 
@@ -30,10 +41,10 @@ export default function Auth() {
     try {
       const { error } = await signInWithGoogle()
       if (error) {
-        setMsg({ t: 'error', m: error.message })
+        setMsg({ t: 'error', m: authErrorMessage(error) })
       }
     } catch (error) {
-      setMsg({ t: 'error', m: error instanceof Error ? error.message : 'Connexion avec Google impossible.' })
+      setMsg({ t: 'error', m: authErrorMessage(error) })
     } finally {
       setBusy(false)
     }

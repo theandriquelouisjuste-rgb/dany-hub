@@ -160,6 +160,14 @@ create table if not exists public.payments (
   created_at timestamptz not null default now()
 );
 create index if not exists pay_user_date on public.payments (user_id, date desc);
+alter table public.payments add column if not exists currency text;
+update public.payments p
+set currency = coalesce(prefs.currency, 'HTG')
+from public.user_preferences prefs
+where p.user_id = prefs.user_id and p.currency is null;
+update public.payments set currency = 'HTG' where currency is null;
+alter table public.payments alter column currency set default 'HTG';
+alter table public.payments alter column currency set not null;
 
 -- Objectifs d'épargne ---------------------------------------------------
 create table if not exists public.savings_goals (

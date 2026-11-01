@@ -20,11 +20,13 @@ Build de production : `npm run build` (dossier `dist/`, déployable sur Vercel /
 
 ### Connexion Google
 
-Dans Supabase, active **Authentication > Providers > Google** et configure les identifiants OAuth Google. Dans Google Cloud, ajoute l'URL de rappel affichée par le fournisseur Google de Supabase comme URI de redirection autorisée. Enfin, ajoute l'URL du site courant (par exemple `https://ton-site/`) dans **Authentication > URL Configuration > Redirect URLs**. Le bouton « Continuer avec Google » utilise le chemin du site courant comme destination de retour.
+Dans le projet Supabase réellement utilisé par le site, active **Authentication > Sign In / Providers > Google** et configure les identifiants OAuth Google. Dans Google Cloud, ajoute l'URL de rappel affichée par le fournisseur Google de Supabase comme URI de redirection autorisée. Enfin, ajoute les URL de retour du site dans **Authentication > URL Configuration > Redirect URLs**, notamment `https://dany-hub.vercel.app/`. Le bouton « Continuer avec Google » utilise l'URL du site courant comme destination de retour.
 
 ### Mise à jour d'une installation existante
 
-Exécute à nouveau la version actuelle de `supabase/schema.sql` dans le SQL Editor de Supabase pour créer les tables `debts`, `debt_payments`, `calendar_events` et `notifications`, ainsi que leurs règles RLS et leurs index. Le script ajoute également la devise aux transactions, budgets et objectifs/contributions d'épargne existants. Pour les anciennes lignes sans devise, il utilise la devise enregistrée dans les préférences au moment de la migration (ou HTG si aucune préférence n'existe). Il conserve les montants et les données déjà présentes.
+Dans le projet Supabase utilisé par le site, exécute `supabase/migrations/20261101_currency_and_new_features.sql` dans **SQL Editor**. Cette migration ajoute les colonnes de devise manquantes (y compris aux anciens paiements), crée les tables `debts`, `debt_payments`, `calendar_events` et `notifications` avec leurs règles RLS, et conserve les montants et données déjà présents. Pour une nouvelle installation, exécute `supabase/schema.sql` à la place. Les enregistrements historiques sans devise reçoivent la devise actuellement enregistrée dans les préférences du compte (ou HTG si aucune préférence n'existe); une devise d'origine déjà perdue ne peut pas être reconstituée.
+
+Exécute la migration sur chaque projet Supabase utilisé par un déploiement. Vérifie que le domaine du projet dans Supabase correspond à `VITE_SUPABASE_URL` dans les paramètres Vercel ou aux secrets GitHub Actions; deux domaines peuvent pointer vers deux bases de données différentes.
 
 ## Publication sur GitHub Pages
 
