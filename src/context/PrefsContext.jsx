@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
-import { CURRENCIES } from '../lib/constants'
+import { CURRENCIES, USD_HTG_RATE } from '../lib/constants'
 import { fmtMoney } from '../lib/utils'
 
 const PrefsCtx = createContext(null)
@@ -10,6 +10,13 @@ export const usePrefs = () => useContext(PrefsCtx)
 const LS = 'danyhub:prefs'
 const RATE_CACHE_PREFIX = 'danyhub:exchange-rates:'
 const RATE_CACHE_TTL = 6 * 60 * 60 * 1000
+const applyHtgUsdRate = (rates, baseCurrency) => {
+  const adjustedRates = { ...rates }
+  if (baseCurrency === 'USD') adjustedRates.HTG = USD_HTG_RATE
+  else if (baseCurrency === 'HTG') adjustedRates.USD = 1 / USD_HTG_RATE
+  else if (Number.isFinite(adjustedRates.USD) && adjustedRates.USD > 0) adjustedRates.HTG = adjustedRates.USD * USD_HTG_RATE
+  return adjustedRates
+}
 const read = () => {
   try { return { theme: 'dark', currency: 'HTG', display_name: '', ...JSON.parse(localStorage.getItem(LS) || '{}') } }
   catch { return { theme: 'dark', currency: 'HTG', display_name: '' } }
@@ -52,8 +59,9 @@ export function PrefsProvider({ children }) {
 
     const hasCachedRates = Number.isFinite(cached?.updatedAt) && cached?.rates && CURRENCIES.every((code) => Number.isFinite(cached.rates[code]))
     if (hasCachedRates) {
+      const rates = applyHtgUsdRate(cached.rates, prefs.currency)
       setFx({
-        rates: cached.rates,
+        rates,
         updatedAt: cached.updatedAt,
         loading: Date.now() - cached.updatedAt >= RATE_CACHE_TTL,
         error: null,
@@ -68,7 +76,8 @@ export function PrefsProvider({ children }) {
         if (!response.ok) throw new Error(`Taux de change indisponibles (${response.status})`)
         const data = await response.json()
         if (data.result !== 'success' || !data.rates) throw new Error('La source de taux de change a retourné une réponse invalide')
-        const rates = Object.fromEntries(CURRENCIES.map((code) => [code, Number(data.rates[code])]))
+        const providerRates = Object.fromEntries(CURRENCIES.map((code) => [code, Number(data.rates[code])]))
+        const rates = applyHtgUsdRate(providerRates, prefs.currency)
         if (rates[prefs.currency] !== 1 || CURRENCIES.some((code) => !Number.isFinite(rates[code]) || rates[code] <= 0)) {
           throw new Error('Les taux de change reçus sont incomplets')
         }
@@ -134,5 +143,6 @@ export function PrefsProvider({ children }) {
     rateLoading: fx.loading,
     rateError: fx.error,
     ratesAvailable: Boolean(fx.rates),
+    usdHtgRate: USD_HTG_RATE,
   }}>{children}</PrefsCtx.Provider>
 }

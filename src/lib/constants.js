@@ -37,5 +37,6 @@ export const FREQUENCIES = [
   { id: 'yearly', label: 'Annuel' },
 ]
 export const CURRENCIES = ['HTG', 'USD', 'EUR', 'DOP', 'CAD', 'GBP']
+export const USD_HTG_RATE = 130.85
 export const methodOf = (id) => PAYMENT_METHODS.find((m) => m.id === id) || PAYMENT_METHODS[2]
 export const priorityOf = (id) => PRIORITIES.find((p) => p.id === id) || PRIORITIES[1]

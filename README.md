@@ -28,6 +28,8 @@ Dans le projet Supabase utilisé par le site, exécute `supabase/migrations/2026
 
 Exécute la migration sur chaque projet Supabase utilisé par un déploiement. Vérifie que le domaine du projet dans Supabase correspond à `VITE_SUPABASE_URL` dans les paramètres Vercel ou aux secrets GitHub Actions; deux domaines peuvent pointer vers deux bases de données différentes.
 
+Pour la conversion HTG/USD, l'application utilise le taux de référence `1 USD = 130,85 HTG`; les autres paires de devises utilisent les taux de change en ligne.
+
 ## Publication sur GitHub Pages
 
 1. Crée un dépôt GitHub public nommé `dany-hub` et envoie-y le contenu de ce projet, sans le fichier `.env`.
